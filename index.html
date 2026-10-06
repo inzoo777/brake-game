@@ -1,298 +1,558 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Swipe Bricks Breaker - Mobile 100 Levels</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Cat Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         * {
-            box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            touch-action: manipulation;
         }
         body {
-            background-color: #121212;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a2e;
             overflow: hidden;
         }
-        #game-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 420px;
-            height: 100%;
-            max-height: 800px;
-            padding: 10px;
+        .pixel-border {
+            box-shadow: 
+                0 -4px #000,
+                0 4px #000,
+                -4px 0 #000,
+                4px 0 #000;
         }
-        .header {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: #1e1e1e;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        .btn-retro {
+            transition: transform 0.1s;
         }
-        .score-box {
-            font-size: 14px;
-            font-weight: bold;
-            text-align: center;
-        }
-        .score-val {
-            color: #00e676;
-            font-size: 18px;
-        }
-        canvas {
-            background: #1a1a24;
-            border-radius: 12px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.7);
-            width: 100%;
-            height: calc(100% - 70px);
+        .btn-retro:active {
+            transform: translateY(4px);
         }
     </style>
 </head>
-<body>
+<body class="flex items-center justify-center min-h-screen p-0 m-0 bg-slate-900">
 
-<div id="game-wrapper">
-    <div class="header">
-        <div class="score-box">LEVEL <br><span id="levelDisplay" class="score-val" style="color:#ff4081;">1</span>/100</div>
-        <div class="score-box">BALLS <br><span id="ballsDisplay" class="score-val">1</span></div>
-        <div class="score-box">SCORE <br><span id="scoreDisplay" class="score-val" style="color:#00b0ff;">0</span></div>
+    <div id="game-container" class="relative w-full max-w-[420px] h-[100vh] max-h-[750px] overflow-hidden bg-sky-400 shadow-2xl rounded-lg border-4 border-slate-800 flex flex-col justify-between">
+        
+        <!-- Canvas for Game Render -->
+        <canvas id="gameCanvas" class="w-full h-full absolute inset-0 z-0"></canvas>
+
+        <!-- HUD Layer -->
+        <div id="hud" class="relative z-10 flex justify-between items-center p-4 text-white text-xs pointer-events-none hidden">
+            <div class="bg-black/40 backdrop-blur px-3 py-2 rounded border-2 border-white/20">
+                SCORE: <span id="hud-score" class="text-yellow-300">0</span>
+            </div>
+            <div class="bg-black/40 backdrop-blur px-3 py-2 rounded border-2 border-white/20 flex items-center gap-1">
+                <span>🪙</span> <span id="hud-coins" class="text-amber-400">0</span>
+            </div>
+        </div>
+
+        <!-- START SCREEN -->
+        <div id="start-screen" class="relative z-20 flex flex-col items-center justify-between h-full p-6 text-center text-white bg-gradient-to-b from-sky-500/80 to-indigo-900/90 backdrop-blur-sm">
+            <div class="mt-8 space-y-4">
+                <div class="inline-block bg-amber-400 p-3 rounded-2xl border-4 border-amber-600 shadow-lg animate-bounce">
+                    <span class="text-4xl">🐱</span>
+                </div>
+                <h1 class="text-3xl text-amber-300 drop-shadow-[0_4px_0_rgba(0,0,0,0.8)] tracking-wider">FLAPPY CAT</h1>
+                <p class="text-[10px] text-sky-200 leading-relaxed max-w-[260px] mx-auto">
+                    Tap, click, or press SPACE to fly. Pass through pipes & collect shiny golden coins!
+                </p>
+            </div>
+
+            <div class="w-full space-y-4 mb-6">
+                <div class="bg-black/30 p-3 rounded-lg border border-white/20 text-[10px] space-y-1">
+                    <div class="text-slate-300">BEST SCORE: <span id="start-best-score" class="text-yellow-400">0</span></div>
+                    <div class="text-slate-300">TOTAL COINS: <span id="start-total-coins" class="text-amber-400">0</span></div>
+                </div>
+
+                <button id="btn-start" class="btn-retro w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm rounded-xl border-b-4 border-emerald-700 shadow-lg active:border-b-0">
+                    START GAME 🚀
+                </button>
+            </div>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="game-over-screen" class="hidden relative z-20 flex flex-col items-center justify-center h-full p-6 text-center text-white bg-black/80 backdrop-blur-md">
+            <div class="bg-slate-800 p-6 rounded-2xl border-4 border-amber-500 w-full max-w-[320px] shadow-2xl space-y-5">
+                <h2 class="text-2xl text-red-500 drop-shadow-[0_2px_0_#000]">GAME OVER</h2>
+
+                <div class="space-y-3 text-left text-xs bg-slate-900/80 p-4 rounded-lg border border-slate-700">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Score:</span>
+                        <span id="go-score" class="text-white font-bold">0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Coins Collected:</span>
+                        <span id="go-coins" class="text-amber-400 font-bold">0</span>
+                    </div>
+                    <hr class="border-slate-700 my-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Best Score:</span>
+                        <span id="go-best" class="text-yellow-400 font-bold">0</span>
+                    </div>
+                </div>
+
+                <button id="btn-restart" class="btn-retro w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs rounded-xl border-b-4 border-amber-700 shadow-lg">
+                    PLAY AGAIN 🔄
+                </button>
+            </div>
+        </div>
+
     </div>
-    <canvas id="gameCanvas"></canvas>
-</div>
 
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-const COLS = 7;
-const ROWS = 9;
-let level = 1;
-let score = 0;
-let totalBalls = 1;
-let ballsToLaunch = 0;
-let ballSpeed = 12;
+        // UI Screens
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const hud = document.getElementById('hud');
+        
+        // HUD displays
+        const hudScore = document.getElementById('hud-score');
+        const hudCoins = document.getElementById('hud-coins');
+        const startBestScore = document.getElementById('start-best-score');
+        const startTotalCoins = document.getElementById('start-total-coins');
+        const goScore = document.getElementById('go-score');
+        const goCoins = document.getElementById('go-coins');
+        const goBest = document.getElementById('go-best');
 
-let isAiming = false;
-let isShooting = false;
-let aimAngle = 0;
-let touchStartPos = { x: 0, y: 0 };
-let currentTouchPos = { x: 0, y: 0 };
+        // Buttons
+        const btnStart = document.getElementById('btn-start');
+        const btnRestart = document.getElementById('btn-restart');
 
-let shooterPos = { x: 0, y: 0 };
-let nextShooterX = null;
+        // Audio Context Synthesizer (No external audio files required)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
 
-let bricks = [];
-let balls = [];
-let items = [];
-
-let cellWidth, cellHeight;
-
-function setupCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    cellWidth = canvas.width / COLS;
-    cellHeight = (canvas.height - 100) / ROWS;
-    shooterPos = { x: canvas.width / 2, y: canvas.height - 30 };
-}
-
-function createLevelBricks(lvl) {
-    let newBricks = [];
-    
-    // Shift existing bricks & items down
-    bricks.forEach(b => b.row++);
-    items.forEach(i => i.row++);
-
-    // Check Loss condition
-    for (let b of bricks) {
-        if (b.row >= ROWS - 1) {
-            alert("GAME OVER! Final Level: " + level);
-            resetGame();
-            return;
+            const now = audioCtx.currentTime;
+            if (type === 'jump') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(350, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'coin') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.setValueAtTime(1200, now + 0.08);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
         }
-    }
 
-    for (let col = 0; col < COLS; col++) {
-        let rand = Math.random();
-        if (rand < 0.60) {
-            let hp = lvl * (1 + Math.floor(Math.random() * 2));
-            newBricks.push({
-                col: col,
-                row: 1,
-                hp: hp,
-                maxHp: hp
+        // Game Variables
+        let animationFrameId = null;
+        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        let score = 0;
+        let coinsCollected = 0;
+        let bestScore = parseInt(localStorage.getItem('flappy_cat_best') || '0');
+        let totalCoins = parseInt(localStorage.getItem('flappy_cat_total_coins') || '0');
+
+        // Canvas Scale Setup
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Flappy Cat Object
+        const cat = {
+            x: 80,
+            y: 250,
+            width: 36,
+            height: 28,
+            gravity: 0.38,
+            jumpStrength: -6.8,
+            velocity: 0,
+            rotation: 0,
+            tailAngle: 0,
+            reset() {
+                this.y = canvas.height / 2;
+                this.velocity = 0;
+                this.rotation = 0;
+            },
+            jump() {
+                this.velocity = this.jumpStrength;
+                playSound('jump');
+            },
+            update() {
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+                this.tailAngle += 0.2;
+
+                // Rotation physics
+                if (this.velocity < 0) {
+                    this.rotation = Math.max(-25, this.velocity * 4);
+                } else {
+                    this.rotation = Math.min(60, this.velocity * 3);
+                }
+            },
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.rotate((this.rotation * Math.PI) / 180);
+
+                // Body (Orange Cat)
+                ctx.fillStyle = '#ff9f43';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#d35400';
+                ctx.stroke();
+
+                // White Belly
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(2, 4, 10, 7, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ears
+                ctx.fillStyle = '#ff9f43';
+                ctx.beginPath();
+                ctx.moveTo(-10, -10);
+                ctx.lineTo(-4, -20);
+                ctx.lineTo(2, -10);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, -10);
+                ctx.lineTo(8, -18);
+                ctx.lineTo(12, -8);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner Ears
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.moveTo(-8, -11);
+                ctx.lineTo(-4, -16);
+                ctx.lineTo(0, -11);
+                ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(8, -3, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#2c3e50';
+                ctx.beginPath();
+                ctx.arc(10, -3, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Whiskers
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(12, 2); ctx.lineTo(20, 0);
+                ctx.moveTo(12, 4); ctx.lineTo(19, 5);
+                ctx.stroke();
+
+                // Tail
+                ctx.strokeStyle = '#d35400';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-16, 2);
+                ctx.quadraticCurveTo(-24, Math.sin(this.tailAngle) * 8, -22, -8);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        };
+
+        // Pipe System
+        let pipes = [];
+        const pipeWidth = 52;
+        const pipeGap = 130;
+        let pipeTimer = 0;
+
+        function spawnPipe() {
+            const minHeight = 60;
+            const maxHeight = canvas.height - pipeGap - minHeight - 60; // 60 for ground
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomY: topHeight + pipeGap,
+                passed: false,
+                hasCoin: Math.random() < 0.7, // 70% chance to spawn a coin in gap
+                coinCollected: false,
+                coinY: topHeight + pipeGap / 2
             });
-        } else if (rand > 0.85) {
-            items.push({ col: col, row: 1, type: 'add_ball' });
-        }
-    }
-
-    bricks.push(...newBricks);
-}
-
-function resetGame() {
-    level = 1;
-    score = 0;
-    totalBalls = 1;
-    bricks = [];
-    items = [];
-    balls = [];
-    isShooting = false;
-    shooterPos = { x: canvas.width / 2, y: canvas.height - 30 };
-    createLevelBricks(level);
-    updateUI();
-}
-
-function updateUI() {
-    document.getElementById('levelDisplay').innerText = level;
-    document.getElementById('ballsDisplay').innerText = totalBalls;
-    document.getElementById('scoreDisplay').innerText = score;
-}
-
-// Touch & Mouse Listeners
-canvas.addEventListener('touchstart', handleStart);
-canvas.addEventListener('touchmove', handleMove);
-canvas.addEventListener('touchend', handleEnd);
-
-canvas.addEventListener('mousedown', handleStart);
-canvas.addEventListener('mousemove', handleMove);
-canvas.addEventListener('mouseup', handleEnd);
-
-function getEventPos(e) {
-    let rect = canvas.getBoundingClientRect();
-    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-    };
-}
-
-function handleStart(e) {
-    if (isShooting) return;
-    isAiming = true;
-    let pos = getEventPos(e);
-    touchStartPos = pos;
-    currentTouchPos = pos;
-}
-
-function handleMove(e) {
-    if (!isAiming || isShooting) return;
-    currentTouchPos = getEventPos(e);
-}
-
-function handleEnd(e) {
-    if (!isAiming || isShooting) return;
-    isAiming = false;
-
-    let dx = touchStartPos.x - currentTouchPos.x;
-    let dy = touchStartPos.y - currentTouchPos.y;
-
-    if (dy > 20) {
-        aimAngle = Math.atan2(dy, dx);
-        startShooting();
-    }
-}
-
-function startShooting() {
-    isShooting = true;
-    ballsToLaunch = totalBalls;
-    balls = [];
-    nextShooterX = null;
-
-    let launchInterval = setInterval(() => {
-        if (ballsToLaunch <= 0) {
-            clearInterval(launchInterval);
-            return;
         }
 
-        balls.push({
-            x: shooterPos.x,
-            y: shooterPos.y,
-            dx: Math.cos(aimAngle) * ballSpeed,
-            dy: -Math.abs(Math.sin(aimAngle)) * ballSpeed,
-            active: true
+        // Particles System
+        let particles = [];
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 4 + 2,
+                    color,
+                    life: 20
+                });
+            }
+        }
+
+        function triggerJump() {
+            if (gameState === 'PLAYING') {
+                cat.jump();
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                triggerJump();
+            }
         });
 
-        ballsToLaunch--;
-    }, 80);
-}
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            triggerJump();
+        });
 
-function drawBricks() {
-    bricks.forEach(b => {
-        let x = b.col * cellWidth + 4;
-        let y = b.row * cellHeight + 4;
-        let w = cellWidth - 8;
-        let h = cellHeight - 8;
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) triggerJump();
+        });
 
-        let hue = Math.max(0, 200 - (b.hp / (level * 2)) * 200);
-        ctx.fillStyle = `hsl(${hue}, 85%, 55%)`;
-        
-        ctx.beginPath();
-        ctx.fillRect(x, y, w, h);
+        function updateStorage() {
+            startBestScore.textContent = bestScore;
+            startTotalCoins.textContent = totalCoins;
+            goBest.textContent = bestScore;
+        }
 
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 15px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(b.hp, x + w / 2, y + h / 2);
-    });
-}
+        function startGame() {
+            gameState = 'PLAYING';
+            score = 0;
+            coinsCollected = 0;
+            pipes = [];
+            particles = [];
+            pipeTimer = 0;
+            cat.reset();
 
-function drawItems() {
-    items.forEach(i => {
-        let x = i.col * cellWidth + cellWidth / 2;
-        let y = i.row * cellHeight + cellHeight / 2;
+            hudScore.textContent = '0';
+            hudCoins.textContent = '0';
 
-        ctx.beginPath();
-        ctx.arc(x, y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = "#00e676";
-        ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("+1", x, y);
-    });
-}
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            hud.classList.remove('hidden');
 
-function drawAimLine() {
-    if (!isAiming) return;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
 
-    let dx = touchStartPos.x - currentTouchPos.x;
-    let dy = touchStartPos.y - currentTouchPos.y;
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            playSound('hit');
 
-    if (dy <= 20) return;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('flappy_cat_best', bestScore);
+            }
+            totalCoins += coinsCollected;
+            localStorage.setItem('flappy_cat_total_coins', totalCoins);
 
-    let angle = Math.atan2(dy, dx);
-    let lineLen = 150;
+            goScore.textContent = score;
+            goCoins.textContent = coinsCollected;
+            updateStorage();
 
-    ctx.beginPath();
-    ctx.setLineDash([5, 5]);
-    ctx.moveTo(shooterPos.x, shooterPos.y);
-    ctx.lineTo(
-        shooterPos.x + Math.cos(angle) * lineLen,
-        shooterPos.y - Math.abs(Math.sin(angle)) * lineLen
-    );
-    ctx.strokeStyle = "#00e5ff";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.setLineDash([]);
-}
+            hud.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+        }
 
-function drawBalls() {
-    balls.forEach(b => {
-        if (!b.active) return;
+        // Main Loop
+        let bgScroll = 0;
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Sky Background Gradient
+            let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#38ef7d');
+            gradient.addColorStop(0.3, '#11998e');
+            gradient.addColorStop(1, '#0f2027');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Animated Parallax Clouds
+            bgScroll += 0.5;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(((100 - bgScroll) % (canvas.width + 100)) - 50, 80, 30, 0, Math.PI * 2);
+            ctx.arc(((130 - bgScroll) % (canvas.width + 100)) - 50, 70, 40, 0, Math.PI * 2);
+            ctx.arc(((160 - bgScroll) % (canvas.width + 100)) - 50, 80, 30, 0, Math.PI * 2);
+            
+            ctx.arc(((300 - bgScroll * 0.7) % (canvas.width + 100)) - 50, 150, 25, 0, Math.PI * 2);
+            ctx.arc(((325 - bgScroll * 0.7) % (canvas.width + 100)) - 50, 140, 35, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (gameState === 'PLAYING') {
+                cat.update();
+
+                // Spawn Pipes
+                pipeTimer++;
+                if (pipeTimer > 100) {
+                    spawnPipe();
+                    pipeTimer = 0;
+                }
+            }
+
+            // Draw & Update Pipes
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                let p = pipes[i];
+                if (gameState === 'PLAYING') p.x -= 2.2;
+
+                // Pipe Body Styling
+                ctx.fillStyle = '#2ecc71';
+                ctx.strokeStyle = '#1e824c';
+                ctx.lineWidth = 3;
+
+                // Top Pipe
+                ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
+                ctx.strokeRect(p.x, 0, pipeWidth, p.topHeight);
+                ctx.fillRect(p.x - 4, p.topHeight - 20, pipeWidth + 8, 20);
+                ctx.strokeRect(p.x - 4, p.topHeight - 20, pipeWidth + 8, 20);
+
+                // Bottom Pipe
+                const bottomHeight = canvas.height - p.bottomY - 40;
+                ctx.fillRect(p.x, p.bottomY, pipeWidth, bottomHeight);
+                ctx.strokeRect(p.x, p.bottomY, pipeWidth, bottomHeight);
+                ctx.fillRect(p.x - 4, p.bottomY, pipeWidth + 8, 20);
+                ctx.strokeRect(p.x - 4, p.bottomY, pipeWidth + 8, 20);
+
+                // Draw Coin inside Pipe Gap
+                if (p.hasCoin && !p.coinCollected) {
+                    const coinX = p.x + pipeWidth / 2;
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.beginPath();
+                    ctx.arc(coinX, p.coinY, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#f39c12';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Coin Shine Detail
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(coinX - 3, p.coinY - 3, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Coin Collision
+                    if (gameState === 'PLAYING') {
+                        const dist = Math.hypot(cat.x + cat.width / 2 - coinX, cat.y + cat.height / 2 - p.coinY);
+                        if (dist < cat.width / 2 + 10) {
+                            p.coinCollected = true;
+                            coinsCollected++;
+                            score += 5; // Extra bonus score
+                            hudCoins.textContent = coinsCollected;
+                            hudScore.textContent = score;
+                            playSound('coin');
+                            createParticles(coinX, p.coinY, '#f1c40f');
+                        }
+                    }
+                }
+
+                // Score Increment on Passing
+                if (gameState === 'PLAYING' && !p.passed && p.x + pipeWidth < cat.x) {
+                    p.passed = true;
+                    score++;
+                    hudScore.textContent = score;
+                }
+
+                // Collision Detection with Cat
+                if (gameState === 'PLAYING') {
+                    const catBox = {
+                        left: cat.x + 4,
+                        right: cat.x + cat.width - 4,
+                        top: cat.y + 4,
+                        bottom: cat.y + cat.height - 4
+                    };
+
+                    const inPipeX = catBox.right > p.x && catBox.left < p.x + pipeWidth;
+                    const hitTopPipe = catBox.top < p.topHeight;
+                    const hitBottomPipe = catBox.bottom > p.bottomY;
+
+                    if (inPipeX && (hitTopPipe || hitBottomPipe)) {
+                        gameOver();
+                    }
+                }
+
+                // Remove Offscreen Pipes
+                if (p.x + pipeWidth < -20) {
+                    pipes.splice(i, 1);
+                }
+            }
+
+            // Ground & Grass
+            const groundY = canvas.height - 40;
+            ctx.fillStyle = '#e67e22';
+            ctx.fillRect(0, groundY, canvas.width, 40);
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(0, groundY, canvas.width, 10);
+
+            // Check Ground / Ceiling Collision
+            if (gameState === 'PLAYING') {
+                if (cat.y + cat.height >= groundY || cat.y <= -20) {
+                    gameOver();
+                }
+            }
+
+            // Particles Update & Rendering
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let part = particles[i];
+                part.x += part.vx;
+                part.y += part.vy;
+                part.life--;
+                ctx.fillStyle = part.color;
+                ctx.beginPath();
+                ctx.arc(part.x, part.y, part.radius, 0, Math.PI * 2);
+                ctx.fill();
+                if (part.life <= 0) particles.splice(i, 1);
+            }
+
+            // Render Character Cat
+            cat.draw();
+
+            if (gameState === 'PLAYING') {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Initialize Screen Data
+        updateStorage();
+        btnStart.addEventListener('click', startGame);
+        btnRestart.addEventListener('click', startGame);
+
+        // First render pass for background preview
+        gameLoop();
+    </script>
+</body>
+</html>
