@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Swipe Bricks Breaker - Mobile 100 Levels</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            background-color: #121212;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 420px;
+            height: 100%;
+            max-height: 800px;
+            padding: 10px;
+        }
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: #1e1e1e;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .score-box {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .score-val {
+            color: #00e676;
+            font-size: 20px;
+        }
+        canvas {
+            background: #1a1a24;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.7);
+            width: 100%;
+            height: calc(100% - 70px);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div class="header">
+        <div class="score-box">LEVEL <br><span id="levelDisplay" class="score-val" style="color:#ff4081;">1</span>/100</div>
+        <div class="score-box">BALLS <br><span id="ballsDisplay" class="score-val">1</span></div>
+        <div class="score-box">SCORE <br><span id="scoreDisplay" class="score-val" style="color:#00b0ff;">0</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Resize Canvas dynamically for Mobile aspect ratio
+function setupCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+}
+
+// Game Settings
+const COLS = 7;
+const ROWS = 9;
+let level = 1;
+let score = 0;
+let totalBalls = 1;
+let ballsToLaunch = 1;
+let ballSpeed = 12;
+
+let isAiming = false;
+let isShooting = false;
+let aimAngle = 0;
+let touchStartPos = { x: 0, y: 0 };
+let currentTouchPos = { x: 0, y: 0 };
+
+let shooterPos = { x: 0, y: 0 };
+let nextShooterX = null;
+
+let bricks = [];
+let balls = [];
+let items = []; // Extra ball pickups (+1)
+
+// Grid layout calculations
+let cellWidth, cellHeight;
+
+function initGrid() {
+    cellWidth = canvas.width / COLS;
+    cellHeight = (canvas.height - 100) / ROWS;
+    shooterPos = { x: canvas.width / 2, y: canvas.height - 30 };
+}
+
+// Brick generator for 100 levels
+function createLevelBricks(lvl) {
+    let newBricks = [];
+    let rowPattern = Math.min(2 + Math.floor(lvl / 10), 6); // More rows as level increases
+    
+    for (let col = 0; col < COLS; colCol++) {
+        // Decide whether to place brick or extra ball item
+        let rand = Math.random();
+        if (rand < 0.65) {
+            let hp = lvl * (1 + Math.floor(Math.random() * 2));
+            newBricks.push({
+                col: col,
+                row: 1,
+                hp: hp,
+                maxHp: hp
+            });
+        } else if (rand > 0.85) {
+            items.push({ col: col, row: 1, type: 'add_ball' });
+        }
+    }
+    
+    // Shift existing bricks down
+    bricks.forEach(b => b.row++);
+    items.forEach(i => i.row++);
+
+    // Check Loss condition
+    for (let b of bricks) {
+        if (b.row >= ROWS - 1) {
+            alert("GAME OVER! Final Level: " + level);
+            resetGame();
+            return;
+        }
+    }
+
+    bricks.push(...newBricks);
+}
+
+function resetGame() {
+    level = 1;
+    score = 0;
+    totalBalls = 1;
+    bricks = [];
+    items = [];
+    balls = [];
+    isShooting = false;
+    shooterPos = { x: canvas.width / 2, y: canvas.height - 30 };
+    createLevelBricks(level);
+    updateUI();
+}
+
+function updateUI() {
+    document.getElementById('levelDisplay').innerText = level;
+    document.getElementById('ballsDisplay').innerText = totalBalls;
+    document.getElementById('scoreDisplay').innerText = score;
+}
+
+// Aiming & Input Listeners
+canvas.addEventListener('touchstart', handleStart);
+canvas.addEventListener('touchmove', handleMove);
+canvas.addEventListener('touchend', handleEnd);
+
+canvas.addEventListener('mousedown', handleStart);
+canvas.addEventListener('mousemove', handleMove);
+canvas.addEventListener('mouseup', handleEnd);
+
+function handleStart(e) {
+    if (isShooting) return;
+    isAiming = true;
+    let pos = getEventPos(e);
+    touchStartPos = pos;
+    currentTouchPos = pos;
+}
+
+function handleMove(e) {
+    if (!isAiming || isShooting) return;
+    currentTouchPos = getEventPos(e);
+}
+
+function handleEnd(e) {
+    if (!isAiming || isShooting) return;
+    isAiming = false;
+
+    let dx = touchStartPos.x - currentTouchPos.x;
+    let dy = touchStartPos.y - currentTouchPos.y;
+
+    // Minimum drag distance required to shoot
+    if (dy > 20) {
+        aimAngle = Math.atan2(dy, dx);
+        startShooting();
+    }
+}
+
+function getEventPos(e) {
+    let rect = canvas.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
+
+function startShooting() {
+    isShooting = true;
+    ballsToLaunch = totalBalls;
+    balls = [];
+    nextShooterX = null;
+
+    let launchInterval = setInterval(() => {
+        if (ballsToLaunch <= 0) {
+            clearInterval(launchInterval);
+            return;
+        }
+
+        balls.push({
+            x: shooterPos.x,
+            y: shooterPos.y,
+            dx: Math.cos(aimAngle) * ballSpeed,
+            dy: -Math.abs(Math.sin(aimAngle)) * ballSpeed,
+            active: true
+        });
+
+        ballsToLaunch--;
+    }, 100);
+}
+
+// Drawing Functions
+function drawBricks() {
+    bricks.forEach(b => {
+        let x = b.col * cellWidth + 4;
+        let y = b.row * cellHeight + 4;
+        let w = cellWidth - 8;
+        let h = cellHeight - 8;
+
+        // Color based on HP intensity
+        let hue = Math.max(0, 220 - (b.hp / (level * 3)) * 220);
+        ctx.fillStyle = `hsl(${hue}, 85%, 55%)`;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 8);
+        ctx.fill();
+
+        // Brick HP Text
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 16px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(b.hp, x + w / 2, y + h / 2);
+    });
+}
+
+function drawItems() {
+    items.forEach(i => {
+        let x = i.col * cellWidth + cellWidth / 2;
+        let y = i.row * cellHeight + cellHeight / 2;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = "#00e676";
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("+1", x, y);
+    });
+}
+
+function drawAimLine() {
+    if (!isAiming) return;
+
+    let dx = touchStartPos.x - currentTouchPos.x;
+    let dy = touchStartPos.y - currentTouchPos.y;
+
+    if (dy <= 20) return;
+
+    let angle = Math.atan2(dy, dx);
+    let lineLen = 150;
+
+    ctx.beginPath();
+    ctx.setLineDash([6, 6]);
+    ctx.moveTo(shooterPos.x, shooterPos.y);
+    ctx.lineTo(
+        shooterPos.x + Math.cos(angle) * lineLen,
+        shooterPos.y - Math.abs(Math.sin(angle)) * lineLen
+    );
+    ctx.strokeStyle = "#00e5ff";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawBalls() {
+    balls.forEach(b => {
+        if (!b.active) return;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+    });
+
+    // Shooter base icon
+    ctx.beginPath();
+    ctx.arc(shooterPos.x, shooterPos.y, 10, 0, Math.PI * 2);
+    ctx.fillStyle = "#00b0ff";
+    ctx.fill();
+}
+
+function updatePhysics() {
+    if (!isShooting) return;
+
+    let allBallsLanded = true;
+
+    balls.forEach(b => {
+        if (!b.active) return;
+        allBallsLanded = false;
+
+        b.x += b.dx;
+        b.y += b.dy;
+
+        // Wall Collisions
+        if (b.x <= 6 || b.x >= canvas.width - 6) b.dx = -b.dx;
+        if (b.y <= 6) b.dy = -b.dy;
+
+        // Floor Collision (Ball Landing)
+        if (b.y >= canvas.height - 30) {
+            b.active = false;
+            if (nextShooterX === null) {
+                nextShooterX = Math.max(15, Math.min(canvas.width - 15, b.x));
+            }
+        }
+
+        // Brick Collisions
+        bricks.forEach((brick, index) => {
+            let bx = brick.col * cellWidth;
+            let by = brick.row * cellHeight;
+
+            if (b.x > bx && b.x < bx + cellWidth && b.y > by && b.y < by + cellHeight) {
+                b.dy = -b.dy;
+                brick.hp--;
+                score += 10;
+
+                if (brick.hp <= 0) {
+                    bricks.splice(index, 1);
+                }
+            }
+        });
+
+        // Item Collection
+        items.forEach((item, index) => {
+            let ix = item.col * cellWidth + cellWidth / 2;
+            let iy = item.row * cellHeight + cellHeight / 2;
+            let dist = Math.hypot(b.x - ix, b.y - iy);
+
+            if (dist < 18) {
+                totalBalls++;
+                items.splice(index, 1);
+            }
+        });
+    });
+
+    // Check if round finished
+    if (allBallsLanded && ballsToLaunch <= 0) {
+        isShooting = false;
+        if (nextShooterX !== null) shooterPos.x = nextShooterX;
+        level++;
+        if (level > 100) {
+            alert("🏆 MABROUK! YOU COMPLETED ALL 100 LEVELS!");
+            resetGame();
+            return;
+        }
+        createLevelBricks(level);
+        updateUI();
+    }
+}
+
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawBricks();
+    drawItems();
+    drawAimLine();
+    drawBalls();
+    updatePhysics();
+
+    requestAnimationFrame(loop);
+}
+
+window.onload = () => {
+    setupCanvas();
+    initGrid();
+    resetGame();
+    loop();
+};
+
+window.onresize = () => {
+    setupCanvas();
+    initGrid();
+};
+</script>
+
+</body>
+</html>
