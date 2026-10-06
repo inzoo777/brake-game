@@ -45,12 +45,13 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         .score-box {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
+            text-align: center;
         }
         .score-val {
             color: #00e676;
-            font-size: 20px;
+            font-size: 18px;
         }
         canvas {
             background: #1a1a24;
@@ -76,20 +77,12 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Resize Canvas dynamically for Mobile aspect ratio
-function setupCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-}
-
-// Game Settings
 const COLS = 7;
 const ROWS = 9;
 let level = 1;
 let score = 0;
 let totalBalls = 1;
-let ballsToLaunch = 1;
+let ballsToLaunch = 0;
 let ballSpeed = 12;
 
 let isAiming = false;
@@ -103,39 +96,23 @@ let nextShooterX = null;
 
 let bricks = [];
 let balls = [];
-let items = []; // Extra ball pickups (+1)
+let items = [];
 
-// Grid layout calculations
 let cellWidth, cellHeight;
 
-function initGrid() {
+function setupCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
     cellWidth = canvas.width / COLS;
     cellHeight = (canvas.height - 100) / ROWS;
     shooterPos = { x: canvas.width / 2, y: canvas.height - 30 };
 }
 
-// Brick generator for 100 levels
 function createLevelBricks(lvl) {
     let newBricks = [];
-    let rowPattern = Math.min(2 + Math.floor(lvl / 10), 6); // More rows as level increases
     
-    for (let col = 0; col < COLS; colCol++) {
-        // Decide whether to place brick or extra ball item
-        let rand = Math.random();
-        if (rand < 0.65) {
-            let hp = lvl * (1 + Math.floor(Math.random() * 2));
-            newBricks.push({
-                col: col,
-                row: 1,
-                hp: hp,
-                maxHp: hp
-            });
-        } else if (rand > 0.85) {
-            items.push({ col: col, row: 1, type: 'add_ball' });
-        }
-    }
-    
-    // Shift existing bricks down
+    // Shift existing bricks & items down
     bricks.forEach(b => b.row++);
     items.forEach(i => i.row++);
 
@@ -145,6 +122,21 @@ function createLevelBricks(lvl) {
             alert("GAME OVER! Final Level: " + level);
             resetGame();
             return;
+        }
+    }
+
+    for (let col = 0; col < COLS; col++) {
+        let rand = Math.random();
+        if (rand < 0.60) {
+            let hp = lvl * (1 + Math.floor(Math.random() * 2));
+            newBricks.push({
+                col: col,
+                row: 1,
+                hp: hp,
+                maxHp: hp
+            });
+        } else if (rand > 0.85) {
+            items.push({ col: col, row: 1, type: 'add_ball' });
         }
     }
 
@@ -170,7 +162,7 @@ function updateUI() {
     document.getElementById('scoreDisplay').innerText = score;
 }
 
-// Aiming & Input Listeners
+// Touch & Mouse Listeners
 canvas.addEventListener('touchstart', handleStart);
 canvas.addEventListener('touchmove', handleMove);
 canvas.addEventListener('touchend', handleEnd);
@@ -178,6 +170,16 @@ canvas.addEventListener('touchend', handleEnd);
 canvas.addEventListener('mousedown', handleStart);
 canvas.addEventListener('mousemove', handleMove);
 canvas.addEventListener('mouseup', handleEnd);
+
+function getEventPos(e) {
+    let rect = canvas.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
 
 function handleStart(e) {
     if (isShooting) return;
@@ -199,21 +201,10 @@ function handleEnd(e) {
     let dx = touchStartPos.x - currentTouchPos.x;
     let dy = touchStartPos.y - currentTouchPos.y;
 
-    // Minimum drag distance required to shoot
     if (dy > 20) {
         aimAngle = Math.atan2(dy, dx);
         startShooting();
     }
-}
-
-function getEventPos(e) {
-    let rect = canvas.getBoundingClientRect();
-    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-    };
 }
 
 function startShooting() {
@@ -237,10 +228,9 @@ function startShooting() {
         });
 
         ballsToLaunch--;
-    }, 100);
+    }, 80);
 }
 
-// Drawing Functions
 function drawBricks() {
     bricks.forEach(b => {
         let x = b.col * cellWidth + 4;
@@ -248,16 +238,14 @@ function drawBricks() {
         let w = cellWidth - 8;
         let h = cellHeight - 8;
 
-        // Color based on HP intensity
-        let hue = Math.max(0, 220 - (b.hp / (level * 3)) * 220);
+        let hue = Math.max(0, 200 - (b.hp / (level * 2)) * 200);
         ctx.fillStyle = `hsl(${hue}, 85%, 55%)`;
+        
         ctx.beginPath();
-        ctx.roundRect(x, y, w, h, 8);
-        ctx.fill();
+        ctx.fillRect(x, y, w, h);
 
-        // Brick HP Text
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 16px Arial";
+        ctx.font = "bold 15px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(b.hp, x + w / 2, y + h / 2);
@@ -270,11 +258,11 @@ function drawItems() {
         let y = i.row * cellHeight + cellHeight / 2;
 
         ctx.beginPath();
-        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
         ctx.fillStyle = "#00e676";
         ctx.fill();
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 12px Arial";
+        ctx.font = "bold 10px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("+1", x, y);
@@ -293,7 +281,7 @@ function drawAimLine() {
     let lineLen = 150;
 
     ctx.beginPath();
-    ctx.setLineDash([6, 6]);
+    ctx.setLineDash([5, 5]);
     ctx.moveTo(shooterPos.x, shooterPos.y);
     ctx.lineTo(
         shooterPos.x + Math.cos(angle) * lineLen,
@@ -308,111 +296,3 @@ function drawAimLine() {
 function drawBalls() {
     balls.forEach(b => {
         if (!b.active) return;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff";
-        ctx.fill();
-    });
-
-    // Shooter base icon
-    ctx.beginPath();
-    ctx.arc(shooterPos.x, shooterPos.y, 10, 0, Math.PI * 2);
-    ctx.fillStyle = "#00b0ff";
-    ctx.fill();
-}
-
-function updatePhysics() {
-    if (!isShooting) return;
-
-    let allBallsLanded = true;
-
-    balls.forEach(b => {
-        if (!b.active) return;
-        allBallsLanded = false;
-
-        b.x += b.dx;
-        b.y += b.dy;
-
-        // Wall Collisions
-        if (b.x <= 6 || b.x >= canvas.width - 6) b.dx = -b.dx;
-        if (b.y <= 6) b.dy = -b.dy;
-
-        // Floor Collision (Ball Landing)
-        if (b.y >= canvas.height - 30) {
-            b.active = false;
-            if (nextShooterX === null) {
-                nextShooterX = Math.max(15, Math.min(canvas.width - 15, b.x));
-            }
-        }
-
-        // Brick Collisions
-        bricks.forEach((brick, index) => {
-            let bx = brick.col * cellWidth;
-            let by = brick.row * cellHeight;
-
-            if (b.x > bx && b.x < bx + cellWidth && b.y > by && b.y < by + cellHeight) {
-                b.dy = -b.dy;
-                brick.hp--;
-                score += 10;
-
-                if (brick.hp <= 0) {
-                    bricks.splice(index, 1);
-                }
-            }
-        });
-
-        // Item Collection
-        items.forEach((item, index) => {
-            let ix = item.col * cellWidth + cellWidth / 2;
-            let iy = item.row * cellHeight + cellHeight / 2;
-            let dist = Math.hypot(b.x - ix, b.y - iy);
-
-            if (dist < 18) {
-                totalBalls++;
-                items.splice(index, 1);
-            }
-        });
-    });
-
-    // Check if round finished
-    if (allBallsLanded && ballsToLaunch <= 0) {
-        isShooting = false;
-        if (nextShooterX !== null) shooterPos.x = nextShooterX;
-        level++;
-        if (level > 100) {
-            alert("🏆 MABROUK! YOU COMPLETED ALL 100 LEVELS!");
-            resetGame();
-            return;
-        }
-        createLevelBricks(level);
-        updateUI();
-    }
-}
-
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    drawBricks();
-    drawItems();
-    drawAimLine();
-    drawBalls();
-    updatePhysics();
-
-    requestAnimationFrame(loop);
-}
-
-window.onload = () => {
-    setupCanvas();
-    initGrid();
-    resetGame();
-    loop();
-};
-
-window.onresize = () => {
-    setupCanvas();
-    initGrid();
-};
-</script>
-
-</body>
-</html>
